@@ -1059,7 +1059,8 @@ dependencies = [
 [[package]]
 name = "ckb-vm"
 version = "0.20.0-rc2"
-source = "git+https://github.com/nervosnetwork/ckb-vm.git?tag=0.20.0-rc2#be75f6027aeb84775850ee0d73b52c57b29f0ba8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3edaa6828e414b2d8cf773acaa561fd104ac595028de9326df790a1f7ba40f8"
 dependencies = [
  "byteorder",
  "bytes 1.0.1",
@@ -1089,7 +1090,20 @@ checksum = "ea76d3867d00736c64876ab0cd304be73691b91990a90ebbf100d36af85fdb05"
 [[package]]
 name = "ckb-vm-definitions"
 version = "0.20.0-rc2"
-source = "git+https://github.com/nervosnetwork/ckb-vm.git?tag=0.20.0-rc2#be75f6027aeb84775850ee0d73b52c57b29f0ba8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85d7d3edb9e8d3fd763e4cdf9bb1910b9addf3511e4c167566d6d119906f03c2"
+
+[[package]]
+name = "ckb-vm-pprof"
+version = "0.2.1"
+source = "git+https://github.com/Flouse/ckb-vm-pprof.git?rev=a79621cc#a79621ccfe4ee11d455801fb582abd5b6c861f84"
+dependencies = [
+ "addr2line 0.13.0",
+ "ckb-vm 0.20.0-rc2",
+ "clap",
+ "memmap",
+ "object 0.20.0",
+]
 
 [[package]]
 name = "clap"
@@ -2172,10 +2186,10 @@ dependencies = [
 name = "gw-generator"
 version = "0.1.1"
 dependencies = [
- "addr2line 0.13.0",
  "anyhow",
  "blake2b-rs 0.2.0",
  "ckb-vm 0.20.0-rc2",
+ "ckb-vm-pprof",
  "gw-common",
  "gw-config",
  "gw-store",
@@ -2184,8 +2198,6 @@ dependencies = [
  "hex",
  "lazy_static",
  "log",
- "memmap",
- "object 0.20.0",
  "rlp",
  "secp256k1 0.20.0",
  "sha3",
