@@ -34,7 +34,6 @@ use gw_types::{
 
 // use gw_types::bytes::Bytes;
 use ckb_vm::machine::asm::AsmCoreMachine;
-use ckb_vm_pprof::machine::PProfMachine;
 use core::ops::Deref;
 
 pub struct StateTransitionArgs {
@@ -484,16 +483,11 @@ impl Generator {
             let default_machine = machine_builder.build();
 
             let program = ckb_vm::Bytes::copy_from_slice(backend.generator.deref());
-            let pprof_logger = ckb_vm_pprof::PProfLogger::from_bytes(&program).map_err(|e| {
-                log::error!("error while loading program {:?}: {:?}", program, e);
-                ckb_vm::Error::Unexpected
-            })?;
-            let pprof_func_provider = Box::new(pprof_logger);
-
-            let mut machine = PProfMachine::new(default_machine, pprof_func_provider);
-            // machine.load_program(&backend.generator, &[])?;
+            let profile = ckb_vm_pprof::Profile::new(&program).unwrap();
+            let mut machine = ckb_vm_pprof::PProfMachine::new(default_machine, profile);
             machine.load_program(&program, &[])?;
             let code = machine.run()?;
+            machine.profile.write_pprof_log("l2tx");
 
             if code != 0 {
                 return Err(TransactionError::InvalidExitCode(code));

@@ -1095,13 +1095,13 @@ checksum = "85d7d3edb9e8d3fd763e4cdf9bb1910b9addf3511e4c167566d6d119906f03c2"
 
 [[package]]
 name = "ckb-vm-pprof"
-version = "0.2.1"
-source = "git+https://github.com/Flouse/ckb-vm-pprof.git?rev=a79621cc#a79621ccfe4ee11d455801fb582abd5b6c861f84"
+version = "0.2.2"
+source = "git+https://github.com/Flouse/ckb-vm-pprof.git?rev=f411b27#f411b275228fc3e1ad4d41aaefe74444717e8bae"
 dependencies = [
  "addr2line 0.13.0",
  "ckb-vm 0.20.0-rc2",
  "clap",
- "memmap",
+ "goblin 0.4.0",
  "object 0.20.0",
 ]
 

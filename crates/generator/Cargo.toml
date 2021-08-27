@@ -23,7 +23,7 @@ sha3 = "0.9.1"
 log = "0.4"
 hex = "0.4"
 
-ckb-vm-pprof = { git = "https://github.com/Flouse/ckb-vm-pprof.git", rev = "a79621cc" }
-# ckb-vm-pprof = { path = "/home/flouse/.cargo/git/checkouts/ckb-vm-pprof-ae157260cd60533a/2e0cd78" }
+ckb-vm-pprof = { git = "https://github.com/Flouse/ckb-vm-pprof.git", rev = "f411b27" }
+
 # use the same version of vkb-vm that ckb-vm-pprof used
 ckb-vm = { version = "0.20.0-rc2", features = ["detect-asm"] }
