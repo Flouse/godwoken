@@ -417,7 +417,20 @@ impl OffChainCancelChallengeValidator {
                 };
 
                 match by_witness() {
-                    Ok(_) => return Ok(Some(cycles)),
+                    Ok(_) => {
+                        log::info!("prepare to dump tx? {} > ", run_result.used_cycles);
+                        if run_result.used_cycles > 28000000 {
+                            if let Some(tx_with_context) = tx_with_context.take() {
+                                dump_tx_to_file(
+                                    validator_ctx,
+                                    &format!("cycles{}_", run_result.used_cycles),
+                                    &tx_hash.to_string(),
+                                    tx_with_context
+                                );
+                            }
+                        }
+                        return Ok(Some(cycles))
+                    }
                     Err(_) if validator_config.dump_tx_on_failure => {
                         if let Some(tx_with_context) = tx_with_context.take() {
                             dump_tx_to_file(

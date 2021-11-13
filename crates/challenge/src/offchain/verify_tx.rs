@@ -115,6 +115,7 @@ pub fn verify_tx(
         TransactionScriptsVerifier::new(&resolved_tx, &consensus, &data_loader, &tx_verify_env)
             .verify(max_cycles)
             .map_err(|err| anyhow!("verify tx failed: {}", err))?;
+    log::info!("verify_tx cycles: {}", cycles);
 
     Ok(cycles)
 }

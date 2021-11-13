@@ -1079,6 +1079,7 @@ impl MemPool {
         if let Some(ref mut offchain_validator) = self.offchain_validator {
             let maybe_cycles =
                 offchain_validator.verify_transaction(db, &state_db, tx.clone(), &run_result);
+            // log::info!("maybe_cycles: {}", maybe_cycles)
 
             if 0 == run_result.exit_code {
                 let cycles = maybe_cycles?;
