@@ -24,7 +24,10 @@ use gw_store::{
 };
 use gw_traits::CodeStore;
 use gw_types::{
-    packed::{self, BlockInfo, RawL2Block, RollupConfig},
+    packed::{
+        self, BlockInfo, MetaContractArgs, MetaContractArgsReader, MetaContractArgsUnion,
+        RawL2Block, RollupConfig, SUDTArgs, SUDTArgsReader, SUDTArgsUnion,
+    },
     prelude::*,
 };
 use gw_version::Version;
@@ -602,10 +605,92 @@ async fn execute_raw_l2transaction(
     Ok(run_result.into())
 }
 
+/// check if the fee or fee_rate/gasPrice of the L2Transaction is enough
+/// - check the fee of MetaContract::CreateAccount
+/// - check the fee of SUDTTransfer
+/// - check the gasPrice of Polyjuice l2TX
+///     gasPrice: Value of the gas for a transaction
+///
+/// @return if the fee is too low for acceptance, return invalid_param_err
+fn check_fee(
+    state: gw_store::state_db::StateTree,
+    generator: Data<Generator>,
+    mem_pool_config: Data<MemPoolConfig>,
+    raw_l2tx: &packed::RawL2Transaction,
+) -> Result<(), RpcError> {
+    let to_id = raw_l2tx.to_id().unpack();
+    let script_hash = state.get_script_hash(to_id)?;
+
+    // todo!("design RpcErrorCode");
+    let backend_name = generator
+        .get_backend_name(&state, &script_hash)
+        .ok_or(RpcError::Full {
+            //TODO: design code
+            code: -11111,
+            message: TransactionError::BackendNotFound { script_hash }.to_string(),
+            data: None,
+        })?;
+
+    // parse args
+    match backend_name.as_str() {
+        // TODO: use map_err style
+        "meta" => match MetaContractArgsReader::verify(raw_l2tx.args().as_slice(), false) {
+            Ok(_) => {
+                let meta_contract_args = MetaContractArgs::new_unchecked(raw_l2tx.args().unpack());
+                let fee: u128 = match meta_contract_args.to_enum() {
+                    MetaContractArgsUnion::CreateAccount(args) => args.fee().amount().unpack(),
+                };
+                let meta_contract_base_fee = mem_pool_config.fee_config.meta_contract_base_fee();
+                if fee < meta_contract_base_fee {
+                    log::warn!(
+                        "The fee is too low for acceptance, should more than meta_contract_base_fee(={}).",
+                        meta_contract_base_fee);
+                    return Err(invalid_param_err("The fee is too low for acceptance, should more than meta_contract_base_fee."));
+                }
+            }
+            Err(_) => return Err(invalid_param_err("invalid MetaContractArgs")),
+        },
+        "sudt" => match SUDTArgsReader::verify(raw_l2tx.args().as_slice(), false) {
+            Ok(_) => {
+                let sudt_args = SUDTArgs::new_unchecked(raw_l2tx.args().unpack());
+                let fee: u128 = match sudt_args.to_enum() {
+                    SUDTArgsUnion::SUDTQuery(_) => return Ok(()),
+                    SUDTArgsUnion::SUDTTransfer(args) => args.fee().unpack(),
+                };
+                let sudt_transfer_base_fee = mem_pool_config.fee_config.sudt_transfer_base_fee();
+                if fee < sudt_transfer_base_fee {
+                    log::warn!(
+                        "The fee is too low for acceptance, should more than sudt_transfer_base_fee(={}).",
+                        sudt_transfer_base_fee);
+                    return Err(invalid_param_err("The fee is too low for acceptance, should more than sudt_transfer_base_fee."));
+                }
+            }
+            Err(_) => return Err(invalid_param_err("invalid SUDTArgs")),
+        },
+        // FIXME: parse args of polyjuice L2TX
+        // "polyjuice" => match
+        // match!()
+
+        //     let min_gas_price = mem_pool_config.fee_configs.polyjuice_base_gas_price();
+
+        //     todo!()
+        // }
+        _ => log::warn!("backend_name not found"),
+    };
+
+    // match script_hash {
+    //     backends
+    // }
+
+    Ok(())
+}
+
 async fn submit_l2transaction(
     Params((l2tx,)): Params<(JsonBytes,)>,
     mem_pool: Data<MemPool>,
     store: Data<Store>,
+    generator: Data<Generator>,
+    mem_pool_config: Data<MemPoolConfig>,
 ) -> Result<JsonH256, RpcError> {
     let mem_pool = match mem_pool.clone() {
         Some(mem_pool) => mem_pool,
@@ -615,35 +700,42 @@ async fn submit_l2transaction(
     };
     let l2tx_bytes = l2tx.into_bytes();
     let tx = packed::L2Transaction::from_slice(&l2tx_bytes)?;
-    let tx_hash = to_jsonh256(tx.hash().into());
+
+    // fetch mem-pool state
+    let db = store.begin_transaction();
+    let state_db = get_state_db_at_block(&db, None, true)?;
+    let tree = state_db.state_tree()?;
+
     // check sender's nonce
-    {
-        // fetch mem-pool state
-        let db = store.begin_transaction();
-        let state_db = get_state_db_at_block(&db, None, true)?;
-        let tree = state_db.state_tree()?;
-        // sender_id
-        let sender_id = tx.raw().from_id().unpack();
-        let sender_nonce: u32 = tree.get_nonce(sender_id)?;
-        let tx_nonce: u32 = tx.raw().nonce().unpack();
-        if sender_nonce != tx_nonce {
-            let err = TransactionError::Nonce {
-                account_id: sender_id,
-                expected: sender_nonce,
-                actual: tx_nonce,
-            };
-            log::info!(
-                "[RPC] reject to submit tx {:?}, err: {}",
-                faster_hex::hex_string(&tx.hash()),
-                err
-            );
-            return Err(RpcError::Full {
-                code: INVALID_NONCE_ERR_CODE,
-                message: err.to_string(),
-                data: None,
-            });
-        }
+    let sender_id = tx.raw().from_id().unpack();
+    let sender_nonce: u32 = tree.get_nonce(sender_id)?;
+    let tx_nonce: u32 = tx.raw().nonce().unpack();
+    if sender_nonce != tx_nonce {
+        let err = TransactionError::Nonce {
+            account_id: sender_id,
+            expected: sender_nonce,
+            actual: tx_nonce,
+        };
+        log::info!(
+            "[RPC] reject to submit tx {:?}, err: {}",
+            faster_hex::hex_string(&tx.hash()),
+            err
+        );
+        return Err(RpcError::Full {
+            code: INVALID_NONCE_ERR_CODE,
+            message: err.to_string(),
+            data: None,
+        });
     }
+
+    // check tx fee or gasPrice
+    let raw_l2tx = tx.raw();
+    check_fee(tree, generator, mem_pool_config, &raw_l2tx)?;
+
+    let tx_hash = to_jsonh256(tx.hash().into());
+    log::info!("tx_hash: {:?}", tx_hash);
+    log::info!("faster_hex::hex_string(&tx.hash()): {:?}", tx_hash);
+
     // run task in the background
     smol::spawn(async move {
         if let Err(err) = mem_pool.lock().await.push_transaction(tx.clone()) {
@@ -670,6 +762,9 @@ async fn submit_withdrawal_request(
     };
     let withdrawal_bytes = withdrawal_request.into_bytes();
     let withdrawal = packed::WithdrawalRequest::from_slice(&withdrawal_bytes)?;
+
+    // TODO: Check Fee
+    // withdrawal.fee()
 
     mem_pool.lock().await.push_withdrawal_request(withdrawal)?;
     Ok(())
@@ -895,10 +990,7 @@ async fn debug_dump_cancel_challenge_tx(
         let db = chain.store().begin_transaction();
         match db.get_block_hash_by_number(block_number) {
             Ok(Some(hash)) => Ok(hash),
-            Ok(None) => Err(RpcError::Provided {
-                code: INVALID_PARAM_ERR_CODE,
-                message: "block hash not found",
-            }),
+            Ok(None) => Err(invalid_param_err("block hash not found")),
             Err(err) => Err(RpcError::Full {
                 code: INTERNAL_ERROR_ERR_CODE,
                 message: err.to_string(),
