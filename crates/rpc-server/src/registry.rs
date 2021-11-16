@@ -584,21 +584,20 @@ fn check_fee(
 ) -> Result<(), RpcError> {
     let to_id = raw_l2tx.to_id().unpack();
     let script_hash = state.get_script_hash(to_id)?;
-
-    // todo!("design RpcErrorCode");
     let backend_name = generator
         .get_backend_name(&state, &script_hash)
         .ok_or(RpcError::Full {
-            //TODO: design code
-            code: -11111,
+            code: INVALID_PARAM_ERR_CODE,
             message: TransactionError::BackendNotFound { script_hash }.to_string(),
-            data: None,
+            data: Some(Box::new("Please check to_id")),
         })?;
+    log::debug!("backend name: {}", backend_name);
 
     // parse args
+    let raw_l2tx_args = raw_l2tx.args().raw_data();
     match backend_name.as_str() {
         // TODO: use map_err style
-        "meta" => match MetaContractArgsReader::verify(raw_l2tx.args().as_slice(), false) {
+        "meta" => match MetaContractArgsReader::verify(raw_l2tx_args.as_ref(), false) {
             Ok(_) => {
                 let meta_contract_args = MetaContractArgs::new_unchecked(raw_l2tx.args().unpack());
                 let fee: u128 = match meta_contract_args.to_enum() {
@@ -607,14 +606,14 @@ fn check_fee(
                 let meta_contract_base_fee = mem_pool_config.fee_config.meta_contract_base_fee();
                 if fee < meta_contract_base_fee {
                     log::warn!(
-                        "The fee is too low for acceptance, should more than meta_contract_base_fee(={}).",
+                        "The fee is too low for acceptance, should more than meta_contract_base_fee({} shannons).",
                         meta_contract_base_fee);
                     return Err(invalid_param_err("The fee is too low for acceptance, should more than meta_contract_base_fee."));
                 }
             }
             Err(_) => return Err(invalid_param_err("invalid MetaContractArgs")),
         },
-        "sudt" => match SUDTArgsReader::verify(raw_l2tx.args().as_slice(), false) {
+        "sudt" => match SUDTArgsReader::verify(raw_l2tx_args.as_ref(), false) {
             Ok(_) => {
                 let sudt_args = SUDTArgs::new_unchecked(raw_l2tx.args().unpack());
                 let fee: u128 = match sudt_args.to_enum() {
@@ -624,28 +623,30 @@ fn check_fee(
                 let sudt_transfer_base_fee = mem_pool_config.fee_config.sudt_transfer_base_fee();
                 if fee < sudt_transfer_base_fee {
                     log::warn!(
-                        "The fee is too low for acceptance, should more than sudt_transfer_base_fee(={}).",
+                        "The fee is too low for acceptance, should more than sudt_transfer_base_fee({} shannons).",
                         sudt_transfer_base_fee);
                     return Err(invalid_param_err("The fee is too low for acceptance, should more than sudt_transfer_base_fee."));
                 }
             }
             Err(_) => return Err(invalid_param_err("invalid SUDTArgs")),
         },
-        // FIXME: parse args of polyjuice L2TX
-        // "polyjuice" => match
-        // match!()
-
-        //     let min_gas_price = mem_pool_config.fee_configs.polyjuice_base_gas_price();
-
-        //     todo!()
-        // }
-        _ => log::warn!("backend_name not found"),
+        "polyjuice" => {
+            // verify the args of a polyjuice L2TX
+            // https://github.com/nervosnetwork/godwoken-polyjuice/blob/aee95c0/README.md#polyjuice-arguments
+            if raw_l2tx_args.len() < (8 + 8 + 16 + 16 + 4) {
+                return Err(invalid_param_err("invalid PolyjuiceArgs"));
+            }
+            let poly_args = raw_l2tx_args.as_ref();
+            let gas_price = u128::from_le_bytes(poly_args[16..32].try_into()?);
+            let min_gas_price = mem_pool_config.fee_config.polyjuice_base_gas_price();
+            if gas_price < min_gas_price {
+                log::warn!(
+                    "Gas Price too low for acceptance, should more than polyjuice_base_gas_price({} shannons).",
+                    min_gas_price);
+            }
+        }
+        _ => log::warn!("backend not found"),
     };
-
-    // match script_hash {
-    //     backends
-    // }
-
     Ok(())
 }
 
@@ -695,9 +696,6 @@ async fn submit_l2transaction(
     check_fee(tree, generator, mem_pool_config, &raw_l2tx)?;
 
     let tx_hash = to_jsonh256(tx.hash().into());
-    log::info!("tx_hash: {:?}", tx_hash);
-    log::info!("faster_hex::hex_string(&tx.hash()): {:?}", tx_hash);
-
     match mem_pool_batch.try_push_transaction(tx) {
         Ok(_) => Ok(tx_hash),
         Err(BatchError::Shutdown) => Err(RpcError::Provided {
