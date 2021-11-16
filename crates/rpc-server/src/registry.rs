@@ -572,7 +572,7 @@ async fn execute_raw_l2transaction(
 /// check if the fee or fee_rate/gasPrice of the L2Transaction is enough
 /// - check the fee of MetaContract::CreateAccount
 /// - check the fee of SUDTTransfer
-/// - check the gasPrice of Polyjuice l2TX
+/// - check the gasPrice of Polyjuice L2TX
 ///     gasPrice: Value of the gas for a transaction
 ///
 /// @return if the fee is too low for acceptance, return invalid_param_err
@@ -713,6 +713,7 @@ async fn submit_l2transaction(
 async fn submit_withdrawal_request(
     Params((withdrawal_request,)): Params<(JsonBytes,)>,
     mem_pool_batch: Data<Option<MemPoolBatch>>,
+    mem_pool_config: Data<MemPoolConfig>,
 ) -> Result<(), RpcError> {
     let mem_pool_batch = match &*mem_pool_batch {
         Some(mem_pool_batch) => mem_pool_batch,
@@ -723,8 +724,18 @@ async fn submit_withdrawal_request(
     let withdrawal_bytes = withdrawal_request.into_bytes();
     let withdrawal = packed::WithdrawalRequest::from_slice(&withdrawal_bytes)?;
 
-    // TODO: Check Fee
-    // withdrawal.fee()
+    // Check Fee
+    let fee = withdrawal.raw().fee().amount().unpack();
+    let withdrawal_base_fee = mem_pool_config.fee_config.withdrawal_base_fee();
+    if fee < withdrawal_base_fee {
+        log::warn!(
+            "The fee is too low for acceptance, should more than withdrawal_base_fee({} shannons).",
+            withdrawal_base_fee
+        );
+        return Err(invalid_param_err(
+            "The fee is too low for acceptance, should more than withdrawal_base_fee.",
+        ));
+    }
 
     match mem_pool_batch.try_push_withdrawal_request(withdrawal) {
         Ok(_) => Ok(()),
