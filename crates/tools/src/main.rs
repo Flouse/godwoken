@@ -264,7 +264,7 @@ fn run_cli() -> Result<()> {
                         .long("capacity")
                         .takes_value(true)
                         .required(true)
-                        .help("CKB capacity to deposit"),
+                        .help("CKB capacity to deposit (unit: CKB, format: 123.335)"),
                 )
                 .arg(
                     Arg::with_name("eth-address")
@@ -297,7 +297,7 @@ fn run_cli() -> Result<()> {
                         .long("capacity")
                         .takes_value(true)
                         .required(true)
-                        .help("CKB capacity to withdrawal"),
+                        .help("CKB capacity to withdrawal (unit: CKB, format: 123.335)"),
                 )
                 .arg(
                     Arg::with_name("amount")
@@ -324,6 +324,14 @@ fn run_cli() -> Result<()> {
                             "0x0000000000000000000000000000000000000000000000000000000000000000",
                         )
                         .help("l1 sudt script hash, default for withdrawal CKB"),
+                )
+                .arg(
+                    Arg::with_name("fee")
+                        .short("f")
+                        .long("fee")
+                        .takes_value(true)
+                        .default_value("0.0001")
+                        .help("The fee of withdrawal request, default to 0.0001 CKB.")
                 ),
         )
         .subcommand(
@@ -405,7 +413,7 @@ fn run_cli() -> Result<()> {
                         .long("amount")
                         .takes_value(true)
                         .default_value("0")
-                        .help("sUDT amount to transfer, CKB in shannon"),
+                        .help("sUDT amount to transfer (unit: Shannon)"),
                 )
                 .arg(
                     Arg::with_name("fee")
@@ -413,7 +421,7 @@ fn run_cli() -> Result<()> {
                         .long("fee")
                         .takes_value(true)
                         .required(true)
-                        .help("transfer fee"),
+                        .help("transfer fee (unit: Shannon)"),
                 )
                 .arg(
                     Arg::with_name("to")
@@ -899,6 +907,7 @@ fn run_cli() -> Result<()> {
             let privkey_path = Path::new(m.value_of("privkey-path").unwrap());
             let capacity = m.value_of("capacity").unwrap();
             let amount = m.value_of("amount").unwrap();
+            let fee = m.value_of("fee").unwrap();
             let scripts_deployment_path = Path::new(m.value_of("scripts-deployment-path").unwrap());
             let config_path = Path::new(m.value_of("config-path").unwrap());
             let godwoken_rpc_url = m.value_of("godwoken-rpc-url").unwrap();
@@ -910,6 +919,7 @@ fn run_cli() -> Result<()> {
                 privkey_path,
                 capacity,
                 amount,
+                fee,
                 sudt_script_hash,
                 owner_ckb_address,
                 config_path,
