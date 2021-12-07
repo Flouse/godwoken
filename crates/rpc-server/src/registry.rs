@@ -1068,6 +1068,16 @@ async fn report_pprof() -> Result<()> {
                 let mut options = pprof::flamegraph::Options::default();
                 options.image_width = Some(2500);
                 report.flamegraph_with_options(file, &mut options).unwrap();
+
+                // output profile.proto with protobuf feature enabled
+                // > https://github.com/tikv/pprof-rs#use-with-pprof
+                use pprof::protos::Message;
+                let mut file = std::fs::File::create("/code/workspace/profile.pb").unwrap();
+                let profile = report.pprof().unwrap();
+                let mut content = Vec::new();
+                profile.encode(&mut content).unwrap();
+                std::io::Write::write_all(&mut file, &content).unwrap();
+                // println!("report: {}", &report);
             }
         })
         .detach()
