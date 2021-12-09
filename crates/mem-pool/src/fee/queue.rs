@@ -4,7 +4,7 @@ use gw_store::transaction::StoreTransaction;
 use std::collections::{BinaryHeap, HashMap};
 
 /// Max queue size
-const MAX_QUEUE_SIZE: usize = 10000;
+const MAX_QUEUE_SIZE: usize = 200;
 /// Drop size when queue is full
 const DROP_SIZE: usize = 100;
 
