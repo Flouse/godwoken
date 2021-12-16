@@ -306,7 +306,7 @@ struct RequestSubmitter {
 }
 
 impl RequestSubmitter {
-    const MAX_CHANNEL_SIZE: usize = 1000;
+    const MAX_CHANNEL_SIZE: usize = 2000;
     const MAX_BATCH_SIZE: usize = 20;
     const INTERVAL_MS: Duration = Duration::from_millis(100);
 
@@ -878,6 +878,7 @@ async fn submit_l2transaction(
         }
     }
 
+    let t = Instant::now();
     if let Err(err) = submit_tx.try_send(Request::Tx(tx)) {
         if err.is_full() {
             return Err(RpcError::Provided {
@@ -892,6 +893,7 @@ async fn submit_l2transaction(
             });
         }
     }
+    log::debug!("submit_tx.try_send, took {}ms", t.elapsed().as_millis());
 
     Ok(tx_hash)
 }
