@@ -58,6 +58,8 @@ impl BackendManage {
     }
 
     pub fn register_backend(&mut self, backend: Backend) {
+        log::info!("backend_type: {:?}", backend.backend_type);
+
         #[cfg(has_asm)]
         #[cfg(feature = "aot")]
         self.aot_codes.insert(
@@ -77,6 +79,8 @@ impl BackendManage {
     #[cfg(has_asm)]
     #[cfg(feature = "aot")]
     fn aot_compile(&self, code_bytes: &Bytes) -> Result<AotCode, ckb_vm::Error> {
+        let t = std::time::Instant::now();
+
         let global_vm_version =
             smol::block_on(async { *gw_ckb_hardfork::GLOBAL_VM_VERSION.lock().await });
         let vm_version = match global_vm_version {
@@ -90,6 +94,19 @@ impl BackendManage {
             vm_version.vm_isa(),
             vm_version.vm_version(),
         )?;
+
+        let aot_code_opt = aot_machine.compile();
+        log::info!(
+            "aot_machine.compile() took: {}ms",
+            t.elapsed().as_millis()
+        );
+        if let Ok(aot_code) = aot_code_opt {
+            let code = aot_code.code.as_ref();
+            let label_size = aot_code.labels.capacity();
+
+            log::info!("code length: {}, label_size: {}", code.len(), label_size);
+        }
+
         aot_machine.compile()
     }
 
