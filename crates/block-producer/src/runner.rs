@@ -196,6 +196,11 @@ async fn poll_loop(
             };
             let mut global_vm_version = GLOBAL_VM_VERSION.lock().await;
             if *global_vm_version != vm_version {
+                log::info!(
+                    "[poll_loop] Update GLOBAL_VM_VERSION from {} to {}",
+                    *global_vm_version,
+                    vm_version
+                );
                 *global_vm_version = vm_version;
             }
             last_event_time = Instant::now();

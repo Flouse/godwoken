@@ -83,6 +83,7 @@ impl BackendManage {
             1 => crate::VMVersion::V1,
             ver => panic!("Unsupport VMVersion: {}", ver),
         };
+        log::info!("Compile AotCode with VMVersion::V{}", global_vm_version);
         let mut aot_machine = ckb_vm::machine::aot::AotCompilingMachine::load(
             code_bytes,
             Some(Box::new(crate::vm_cost_model::instruction_cycles)),

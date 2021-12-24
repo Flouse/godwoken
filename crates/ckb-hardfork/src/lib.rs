@@ -2,7 +2,7 @@ use ckb_types::core::hardfork::HardForkSwitch;
 use smol::lock::Mutex;
 
 lazy_static::lazy_static! {
-    pub static ref GLOBAL_VM_VERSION: Mutex<u32> = Mutex::new(0);
+    pub static ref GLOBAL_VM_VERSION: Mutex<u32> = Mutex::new(1);
     pub static ref GLOBAL_HARDFORK_SWITCH: Mutex<HardForkSwitch> = Mutex::new(
         HardForkSwitch::new_without_any_enabled()
     );
