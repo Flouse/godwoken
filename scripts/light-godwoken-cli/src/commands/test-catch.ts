@@ -16,9 +16,9 @@ export async function tryCatch(params: {
     const startAt = params.startAt ?? 0;
     const targets = [1, 2, 3, 4, 5];
 
-    process.on('uncaughtException', (error, origin) => {
-      console.log('global uncaught error:', origin, error);
-    });
+    // process.on('uncaughtException', (error, origin) => {
+    //   console.log('global uncaught error:', origin, error);
+    // });
 
     for (let i = startAt; i < targets.length; i++) {
       const target = targets[i];
@@ -54,13 +54,8 @@ export async function tryCatch(params: {
 }
 
 async function failInCallback(target: number) {
-  return new Promise<void>((resolve) => {
-    setTimeout(() => {
-      if ([2, 4].includes(target)) {
-        resolve();
-      } else {
-        throw new Error(`failing target ${target}`);
-      }
-    }, 200);
-  });
+  await waitFor(200);
+  if ([1, 3, 5].includes(target)) {
+    throw new Error(`failing target ${target}`);
+  }
 }
