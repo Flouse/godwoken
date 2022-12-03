@@ -26,7 +26,7 @@ prepare-repos:
 
 build-components: prepare-repos
 	cd build/ckb-production-scripts && make all-via-docker
-	cd ../gwos-evm && make dist && cd -
+	cd ../gwos-evm && git submodule update --init --recursive --depth=1 && make dist && cd -
 	cd ../gwos && cd c && make && cd .. && capsule build --release --debug-output && cd ../..
 	cd ../ && rustup component add rustfmt && RUSTFLAGS="-C target-cpu=native" CARGO_PROFILE_RELEASE_LTO=true cargo build --release
 
