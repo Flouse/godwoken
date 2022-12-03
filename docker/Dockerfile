@@ -4,9 +4,10 @@ FROM ghcr.io/godwokenrises/godwoken-prebuilds:dev-poly1.5.0 as historical-versio
 
 ################################################################################
 
+# https://hub.docker.com/_/ubuntu/
 FROM ubuntu:focal
 LABEL description="Docker image containing all binaries used by Godwoken, saving you the hassles of building them yourself."
-LABEL maintainer="Nervos Core Dev <dev@nervos.org>"
+LABEL maintainer="Godwoken Core Dev"
 
 RUN mkdir -p /scripts/godwoken-scripts \
  && mkdir -p /scripts/godwoken-polyjuice \
@@ -19,8 +20,6 @@ RUN apt-get update \
  && echo 'Finished installing OS updates'
 
 # ckb
-# TODO: update to https://github.com/nervosnetwork/ckb/releases/tag/v0.104.0
-# https://github.com/nervosnetwork/ckb/releases/download/v0.104.0/ckb_v0.104.0_x86_64-unknown-linux-gnu.tar.gz
 RUN cd /ckb \
  && curl -LO https://github.com/nervosnetwork/ckb/releases/download/v0.103.0/ckb_v0.103.0_x86_64-unknown-linux-gnu.tar.gz \
  && tar xzf ckb_v0.103.0_x86_64-unknown-linux-gnu.tar.gz \
@@ -50,28 +49,31 @@ COPY --from=historical-versions /scripts/godwoken-polyjuice-v1.4.5/ \
 COPY --from=historical-versions /scripts/godwoken-polyjuice/* \
                                 /scripts/godwoken-polyjuice-v1.5.0/
 
-# TODO: find /scripts -type f -name '*.aot' -exec rm {} \;
-
 #################################### latest ####################################
-# /scripts/omni-lock
-COPY build/ckb-production-scripts/build/omni_lock /scripts/godwoken-scripts/
-
-# /scripts/godwoken-scripts
-COPY build/godwoken-scripts/build/release/* /scripts/godwoken-scripts/
-COPY build/godwoken-scripts/c/build/*-generator /scripts/godwoken-scripts/
-COPY build/godwoken-scripts/c/build/*-validator /scripts/godwoken-scripts/
-COPY build/godwoken-scripts/c/build/account_locks/* /scripts/godwoken-scripts/
+# COPY [--chown=<user>:<group>] ["<src>",... "<dest>"]
 
 # /scripts/godwoken-polyjuice
-COPY build/godwoken-polyjuice/build/*generator* /scripts/godwoken-polyjuice/
-COPY build/godwoken-polyjuice/build/*validator* /scripts/godwoken-polyjuice/
-################################################################################
+COPY gwos-evm/build/*generator* \
+     gwos-evm/build/*validator* \
+     /scripts/godwoken-polyjuice/
+# TODO: remove *.aot in Polyjuice Makefile
+# RUN find /scripts -type f -name '*.aot' -exec rm {} \;
 
+# /scripts/omni-lock and /scripts/godwoken-scripts
+COPY docker/build/ckb-production-scripts/build/omni_lock \
+     gwos/build/release/* \
+     gwos/c/build/*-generator \ 
+     gwos/c/build/*-validator \
+     gwos/c/build/account_locks/* \
+     /scripts/godwoken-scripts/
 
 # godwoken
-COPY build/godwoken/target/release/godwoken /bin/godwoken
-COPY build/godwoken/target/release/gw-tools /bin/gw-tools
-COPY gw-healthcheck.sh /bin/gw-healthcheck.sh
+COPY target/release/godwoken \
+     target/release/gw-tools \
+     gw-healthcheck.sh \
+     /bin/
+################################################################################
+
 
 WORKDIR /deploy
 

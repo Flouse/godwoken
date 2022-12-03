@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: true
 
       - uses: actions/cache@v3
         with:
@@ -67,14 +69,13 @@ jobs:
           username: ${{ github.ref_type != 'tag' && github.repository_owner || secrets.DOCKERHUB_USERNAME }}
           password: ${{ github.ref_type != 'tag' && secrets.GITHUB_TOKEN || secrets.DOCKERHUB_TOKEN }}
 
-
-
       - name: Prepare components
         id: prepare
+        working-directory: docker
         run: |
           make prepare-repos
           echo "Record the component's reference to the outputs of this step"
-          cat versions >> $GITHUB_OUTPUT
+          cat build/versions >> $GITHUB_OUTPUT
 
       - name: Print the references of components
         run: |
@@ -87,11 +88,11 @@ jobs:
         id: ckb-production-scripts-cache
         uses: actions/cache@v3
         with:
-          path: build/ckb-production-scripts/build/omni_lock
+          path: docker/build/ckb-production-scripts/build/omni_lock
           key: component.ckb-production-scripts-${{ steps.prepare.outputs.ckb-production-scripts-sha1 }}
       - name: Build omni_lock
         if: steps.ckb-production-scripts-cache.outputs.cache-hit != 'true'
-        working-directory: build/ckb-production-scripts
+        working-directory: docker/build/ckb-production-scripts
         run: make all-via-docker
 
       - name: Cache of component.gwos
@@ -99,14 +100,14 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            build/godwoken/gwos/build/release/*
-            build/godwoken/gwos/c/build/*-generator
-            build/godwoken/gwos/c/build/*-validator
-            build/godwoken/gwos/c/build/account_locks/*
-          key: component.gwos-${{ hashFiles('build/godwoken/gwos/**') }}
+            gwos/build/release/*
+            gwos/c/build/*-generator
+            gwos/c/build/*-validator
+            gwos/c/build/account_locks/*
+          key: component.gwos-${{ hashFiles('gwos/**') }}
       - name: Build gwos binaries
         if: steps.gwos-cache.outputs.cache-hit != 'true'
-        working-directory: build/godwoken/gwos
+        working-directory: gwos
         run: cd c && make && cd .. && capsule build --release --debug-output
 
       - name: Cache of component.gwos-evm
@@ -114,12 +115,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            build/godwoken/gwos-evm/build/*generator*
-            build/godwoken/gwos-evm/build/*validator*
-          key: component.gwos-evm-${{ hashFiles('build/godwoken/gwos-evm/**') }}
+            gwos-evm/build/*generator*
+            gwos-evm/build/*validator*
+          key: component.gwos-evm-${{ hashFiles('gwos-evm/**') }}
       - name: Build godwoken-polyjuice
         if: steps.godwoken-polyjuice-cache.outputs.cache-hit != 'true'
-        working-directory: build/godwoken/gwos-evm
+        working-directory: gwos-evm
         run: make all-via-docker
 
       - name: Cache of component.godwoken
@@ -127,24 +128,25 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            build/godwoken/target/release/godwoken
-            build/godwoken/target/release/gw-tools
+            target/release/godwoken
+            target/release/gw-tools
           key: component.godwoken-${{ steps.prepare.outputs.godwoken-sha1 }}
       - name: Cache Godwoken target directory
         if: steps.godwoken-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v3
         with:
           path: |
-            build/godwoken/target
+            target
           key: ${{ runner.os }}-focal-cargo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-focal-cargo-
       - name: Build godwoken
         if: steps.godwoken-cache.outputs.cache-hit != 'true'
-        working-directory: build/godwoken
         # PORTABLE=1 USE_SSE=1 tell rocksdb to target AVX2, that means "mostly portable".
         # see also: https://github.com/nervosnetwork/rust-rocksdb/blob/2de3ae5e5e23a315a477bd24e700eb4f5ef7a378/librocksdb-sys/build_detect_platform#L696-L699
-        run: rustup component add rustfmt && PORTABLE=1 USE_SSE=1 RUSTFLAGS="-C target-cpu=skylake" CARGO_PROFILE_RELEASE_LTO=true cargo build --release
+        run: |
+          rustup component add rustfmt
+          PORTABLE=1 USE_SSE=1 RUSTFLAGS="-C target-cpu=skylake" CARGO_PROFILE_RELEASE_LTO=true cargo build --release
 
       # Extract metadata (tags, labels) for Docker
       # https://github.com/docker/metadata-action
@@ -164,7 +166,7 @@ jobs:
             source.component.godwoken=https://github.com/godwokenrises/godwoken/tree/${{steps.prepare.outputs.GODWOKEN_REF }}
             source.component.gwos=https://github.com/godwokenrises/godwoken/tree/${{steps.prepare.outputs.GODWOKEN_REF }}/gwos
             source.component.gwos-evm=https://github.com/godwokenrises/godwoken/tree/${{steps.prepare.outputs.GODWOKEN_REF }}/gwos-evm
-            source.component.ckb-production-scripts=https://github.com/nervosnetwork/ckb-production-scripts
+            source.component.ckb-production-scripts=https://github.com/nervosnetwork/ckb-production-scripts/tree/${{steps.prepare.outputs.OMNI_LOCK_REF }}
             ref.component.godwoken=${{ steps.prepare.outputs.GODWOKEN_REF }}
             ref.component.godwoken-sha1=${{ steps.prepare.outputs.godwoken-sha1 }}
             ref.component.gwos=${{ steps.prepare.outputs.GODWOKEN_REF }}
@@ -181,7 +183,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: Dockerfile
+          file: docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -193,7 +195,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: Dockerfile
+          file: docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
