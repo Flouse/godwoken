@@ -31,7 +31,7 @@ RUN cd /ckb \
 #
 # If <dest> doesn’t exist, it is created along with all missing directories in its path.
 # refer to https://docs.docker.com/engine/reference/builder/#copy
-COPY checksum.txt /scripts/
+COPY docker/checksum.txt /scripts/
 COPY --from=historical-versions /scripts/godwoken-polyjuice-v1.1.5-beta/ \
                                 /scripts/godwoken-polyjuice-v1.1.5-beta/
 COPY --from=historical-versions /scripts/godwoken-polyjuice-v1.2.0/ \
