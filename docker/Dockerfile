@@ -70,7 +70,7 @@ COPY docker/build/ckb-production-scripts/build/omni_lock \
 # godwoken
 COPY target/release/godwoken \
      target/release/gw-tools \
-     gw-healthcheck.sh \
+     docker/gw-healthcheck.sh \
      /bin/
 ################################################################################
 
